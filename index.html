@@ -4,9 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
 <title>القرآن الشافي</title>
-<link rel="manifest" href="./manifest.json" />
-<link rel="icon" href="./icon-192.png" />
-<link rel="apple-touch-icon" href="./icon-192.png" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -1019,6 +1016,42 @@ function App() {
   const [activeCat, setActiveCat] = useState("all");
   const [expandedId, setExpandedId] = useState(null);
   const { favorites, toggle } = useFavorites();
+  const [installEvt, setInstallEvt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showIosHint, setShowIosHint] = useState(false);
+
+  useEffect(() => {
+    let standalone = false;
+    try {
+      standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+    } catch (e) {}
+    setIsStandalone(standalone);
+
+    const handler = (e) => { e.preventDefault(); setInstallEvt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", () => setInstallEvt(null));
+
+    const ua = window.navigator.userAgent || "";
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+    if (isIOS && isSafari && !standalone) {
+      let dismissed = null;
+      try { dismissed = localStorage.getItem("shafi-ios-hint-dismissed"); } catch (e) {}
+      if (!dismissed) setShowIosHint(true);
+    }
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstallClick = () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    installEvt.userChoice.finally(() => setInstallEvt(null));
+  };
+
+  const dismissIosHint = () => {
+    setShowIosHint(false);
+    try { localStorage.setItem("shafi-ios-hint-dismissed", "1"); } catch (e) {}
+  };
 
   if (!entered) {
     return React.createElement(SplashScreen, { onEnter: () => setEntered(true) });
@@ -1038,6 +1071,26 @@ function App() {
       React.createElement("p", { className: "font-cairo", style: { fontSize: 14, color: "#CFE0D3D9", marginTop: 8, maxWidth: 480, lineHeight: 1.6 } },
         "الأدعية والآيات ورقاها من كتاب الإمام السيوطي — لكل موضع بطاقة فيها ما تقوله، وشرحه كما ورد في الكتاب."
       )
+    ),
+    !isStandalone && installEvt && React.createElement("div", {
+      style: { margin: "0 20px 12px", borderRadius: 12, background: "#B8933E", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }
+    },
+      React.createElement("span", { className: "font-cairo", style: { fontSize: 13, fontWeight: 700, color: "#16281F" } }, "📲 ثبّت التطبيق على هاتفك لاستخدامه دون إنترنت"),
+      React.createElement("button", {
+        type: "button", onClick: handleInstallClick, className: "font-cairo",
+        style: { flexShrink: 0, background: "#123A2E", color: "#F1E7C9", border: "none", borderRadius: 999, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }
+      }, "تثبيت")
+    ),
+    !isStandalone && showIosHint && React.createElement("div", {
+      style: { margin: "0 20px 12px", borderRadius: 12, background: "#123A2E", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }
+    },
+      React.createElement("span", { className: "font-cairo", style: { fontSize: 13, color: "#F1E7C9", lineHeight: 1.6 } },
+        "📲 للتثبيت: اضغط على أيقونة المشاركة ⬆️ أسفل الشاشة، ثم اختر «إضافة إلى الشاشة الرئيسية»"
+      ),
+      React.createElement("button", {
+        type: "button", onClick: dismissIosHint, "aria-label": "إغلاق",
+        style: { flexShrink: 0, background: "transparent", border: "none", color: "#F1E7C9", fontSize: 16, cursor: "pointer", padding: 4 }
+      }, "×")
     ),
     React.createElement("div", { style: { padding: "0 20px", marginTop: -16, position: "relative", zIndex: 10 } },
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, borderRadius: 999, background: "#fff", boxShadow: "0 4px 10px rgba(0,0,0,.12)", border: "1px solid #123A2E1A", padding: "10px 16px" } },
@@ -1116,12 +1169,6 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
-  });
-}
 </script>
 </body>
 </html>
