@@ -1,4 +1,4 @@
-const CACHE_NAME = "shafi-cache-v1";
+const CACHE_NAME = "shafi-cache-v2";
 const APP_SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -17,33 +17,20 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Cache-first for our own app shell, network-first (with cache fallback) for everything else (e.g. Google Fonts)
+// Network-first for everything: always serve the freshest version when online,
+// and only fall back to the cached copy when there's no connection at all.
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  const url = new URL(req.url);
 
-  if (url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) return cached;
-        return fetch(req)
-          .then((res) => {
-            const resClone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
-            return res;
-          })
-          .catch(() => caches.match("./index.html"));
+  event.respondWith(
+    fetch(req)
+      .then((res) => {
+        const resClone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+        return res;
       })
-    );
-  } else {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const resClone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
-          return res;
-        })
-        .catch(() => caches.match(req))
-    );
-  }
+      .catch(() =>
+        caches.match(req).then((cached) => cached || caches.match("./index.html"))
+      )
+  );
 });
