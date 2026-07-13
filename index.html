@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
 <title>القرآن الشافي</title>
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -22,6 +25,17 @@
 </head>
 <body>
 <div id="root"></div>
+<script>
+  /* Capture the install-prompt event as early as possible, before React even mounts,
+     so we never miss it regardless of component mount timing. */
+  window.__shafiDeferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    window.__shafiDeferredPrompt = e;
+    window.dispatchEvent(new Event("shafi-install-ready"));
+  });
+</script>
+
 
 <script>
 /* ---- React 18.2.0 production UMD (embedded, no internet required) ---- */
@@ -1027,9 +1041,10 @@ function App() {
     } catch (e) {}
     setIsStandalone(standalone);
 
-    const handler = (e) => { e.preventDefault(); setInstallEvt(e); };
-    window.addEventListener("beforeinstallprompt", handler);
-    window.addEventListener("appinstalled", () => setInstallEvt(null));
+    if (window.__shafiDeferredPrompt) setInstallEvt(window.__shafiDeferredPrompt);
+    const readyHandler = () => setInstallEvt(window.__shafiDeferredPrompt);
+    window.addEventListener("shafi-install-ready", readyHandler);
+    window.addEventListener("appinstalled", () => { window.__shafiDeferredPrompt = null; setInstallEvt(null); });
 
     const ua = window.navigator.userAgent || "";
     const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
@@ -1039,7 +1054,7 @@ function App() {
       try { dismissed = localStorage.getItem("shafi-ios-hint-dismissed"); } catch (e) {}
       if (!dismissed) setShowIosHint(true);
     }
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("shafi-install-ready", readyHandler);
   }, []);
 
   const handleInstallClick = () => {
@@ -1169,6 +1184,12 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
